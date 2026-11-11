@@ -42,17 +42,26 @@ local record Batch
 	station2edges : {Engine.Entity : {{any}}}
 	catchable2stations : {Engine.Entity : {Engine.Entity}}
 	stationNodes : {Engine.Entity : {NodeId}}
+	platformNodes : {Engine.Entity : {NodeId}}
+	entranceNodes : {Engine.Entity : {NodeId}}
 	network : Network
+	-- walks with a station at one end whose path starts or ends at a platform, at a street edge of an entrance, and at
+	-- the street edge nearest to the station
+	platformWalks : integer
+	entranceWalks : integer
+	nearestWalks : integer
 end
 local batch : Batch
 
-route_lines.batch = function(fn : function())
-	batch = { stationNodes = {} }
+route_lines.batch = function(fn : function()) : integer, integer, integer
+	batch = { stationNodes = {}, platformNodes = {}, entranceNodes = {}, platformWalks = 0, entranceWalks = 0, nearestWalks = 0 }
 	local ok, message = pcall(fn as function() : any)
+	local platformWalks, entranceWalks, nearestWalks = batch.platformWalks, batch.entranceWalks, batch.nearestWalks
 	batch = nil
 	if not ok then
 		error(message, 0)
 	end
+	return platformWalks, entranceWalks, nearestWalks
 end
 
 -- For each station the edges in its catchment area, each with its distance from the station.
@@ -231,6 +240,164 @@ route_lines.stationNodes = function(station : Engine.Entity) : {NodeId}
 	return nodes
 end
 
+-- The person nodes of the terminals of a station: the places where a person waits for a vehicle.
+local function platformNodes(station : Engine.Entity) : {NodeId}
+	if batch ~= nil and batch.platformNodes[station] ~= nil then
+		return batch.platformNodes[station]
+	end
+	local nodes : {NodeId} = {}
+	pcall(function()
+		local terminals = (component(station, api.type.ComponentType.STATION) as Station).terminals
+		for t = 1, #terminals do
+			local personNodes = terminals[t].personNodes
+			for n = 1, personNodes and #personNodes or 0 do
+				nodes[#nodes + 1] = personNodes[n]
+			end
+		end
+	end)
+	if batch ~= nil then
+		batch.platformNodes[station] = nodes
+	end
+	return nodes
+end
+
+local LOG_PREFIX <const> = "[PersonRoute] "
+local entranceErrorLogged = false
+
+-- The entrances of the stations read so far, as entity and index of each street node. Reading them walks over every edge
+-- of the networks of a station, so they are kept until route_lines.forgetEntrances.
+local entranceCache : {Engine.Entity : {{integer}}} = {}
+
+route_lines.forgetEntrances = function()
+	entranceCache = {}
+end
+
+-- The street nodes at the entrances of a station: the person nodes of every street edge that a link of the game joins to
+-- an edge of a network with a platform of the station. Empty when the game lists no such link.
+local function entranceNodes(station : Engine.Entity) : {NodeId}
+	if batch ~= nil and batch.entranceNodes[station] ~= nil then
+		return batch.entranceNodes[station]
+	end
+	local nodes : {NodeId} = {}
+	local cached = entranceCache[station]
+	if cached ~= nil then
+		for i, pair in ipairs(cached) do
+			nodes[i] = api.type.NodeId.new(pair[1], pair[2])
+		end
+	else
+		local ok, message = pcall(function()
+			local person = api.type["enum"].TransportMode.PERSON
+			-- The type definitions of the game do not list the component type of a link; the enum of the game has it.
+			local linkKind = (api.type.ComponentType as {string : Engine.ComponentType})["TP_NET_LINK"]
+			local networks : {Engine.Entity} = {}
+			local own : {Engine.Entity : boolean} = {}
+			for __, node in ipairs(platformNodes(station)) do
+				if not own[node.entity] then
+					own[node.entity] = true
+					networks[#networks + 1] = node.entity
+				end
+			end
+			local seen : {string : boolean} = {}
+			local function addStreet(edgeId : EdgeId)
+				local key = tostring(edgeId.entity) .. ":" .. tostring(edgeId.index)
+				if seen[key] or own[edgeId.entity] or component(edgeId.entity, api.type.ComponentType.BASE_EDGE) == nil then
+					return
+				end
+				seen[key] = true
+				local street = component(edgeId.entity, api.type.ComponentType.TRANSPORT_NETWORK) as Engine.Component.TransportNetwork
+				local edge = street and street.edges[edgeId.index + 1]
+				if edge and edge.transportModes[person] then
+					for c = 1, #edge.conns do
+						nodes[#nodes + 1] = edge.conns[c]
+					end
+				end
+			end
+			for __, networkEntity in ipairs(networks) do
+				local network = component(networkEntity, api.type.ComponentType.TRANSPORT_NETWORK) as Engine.Component.TransportNetwork
+				for i = 1, network and #network.edges or 0 do
+					local edge = network.edges[i]
+					if edge.transportModes[person] and edge.linkable ~= 0 then
+						local links = api.engine.system.tpNetLinkSystem.getLinkEntities(api.type.EdgeId.new(networkEntity, i - 1))
+						for l = 1, links and #links or 0 do
+							local link = component(links[l], linkKind) as Engine.Component.TpNetLink
+							if link ~= nil then
+								addStreet(link.from.edgeId)
+								addStreet(link.to.edgeId)
+							end
+						end
+					end
+				end
+			end
+		end as function() : any)
+		if ok then
+			local plain : {{integer}} = {}
+			for i, node in ipairs(nodes) do
+				plain[i] = { node.entity, node.index }
+			end
+			entranceCache[station] = plain
+		elseif not entranceErrorLogged then
+			entranceErrorLogged = true
+			print(LOG_PREFIX .. "entrances of station " .. tostring(station) .. " not readable: " .. tostring(message))
+		end
+	end
+	if batch ~= nil then
+		batch.entranceNodes[station] = nodes
+	end
+	return nodes
+end
+
+local function pathMeters(edges : {{EdgeId, boolean}}) : number
+	local meters = 0.0
+	for __, pair in ipairs(edges) do
+		local network = component(pair[1].entity, api.type.ComponentType.TRANSPORT_NETWORK) as Engine.Component.TransportNetwork
+		local edge = network and network.edges and network.edges[pair[1].index + 1]
+		meters = meters + (edge and edge.geometry and edge.geometry.length or 0)
+	end
+	return meters
+end
+
+-- The path of a walk. The pathfinder gives paths of different lengths for the two directions of the same walk, so both
+-- are asked and the shorter one counts. A station end is the street edges at the entrances of the station; the
+-- pathfinder gives no path from a platform of such a station. A station without a known entrance is first its platforms,
+-- then the street edge nearest to it.
+local function walkPath(leg : PrcRouteLeg) : {{EdgeId, boolean}}
+	local person = api.type["enum"].TransportMode.PERSON
+	local byEntrance = false
+	local function find(nodesWithoutEntrance : function(Engine.Entity) : {NodeId}) : {{EdgeId, boolean}}
+		local function stationEnd(station : Engine.Entity) : {NodeId}
+			local nodes = entranceNodes(station)
+			if #nodes > 0 then
+				byEntrance = true
+				return nodes
+			end
+			return nodesWithoutEntrance(station)
+		end
+		local from = leg.fromBuilding ~= nil and route_lines.buildingNodes(leg.fromBuilding, person) or stationEnd(leg.fromStation)
+		local to = leg.toBuilding ~= nil and route_lines.buildingNodes(leg.toBuilding, person) or stationEnd(leg.toStation)
+		local forward = route_lines.findPath(from, to, { person })
+		local backward = route_lines.findPath(to, from, { person })
+		if forward == nil or (backward ~= nil and pathMeters(backward) < pathMeters(forward)) then
+			return backward
+		end
+		return forward
+	end
+	local edges = find(platformNodes)
+	local byPlatform = edges ~= nil
+	if edges == nil then
+		edges = find(route_lines.stationNodes)
+	end
+	if edges ~= nil and batch ~= nil then
+		if byEntrance then
+			batch.entranceWalks = batch.entranceWalks + 1
+		elseif byPlatform then
+			batch.platformWalks = batch.platformWalks + 1
+		else
+			batch.nearestWalks = batch.nearestWalks + 1
+		end
+	end
+	return edges
+end
+
 route_lines.legPath = function(leg : PrcRouteLeg) : {{EdgeId, boolean}}
 	if leg.edges ~= nil then
 		return leg.edges
@@ -238,10 +405,7 @@ route_lines.legPath = function(leg : PrcRouteLeg) : {{EdgeId, boolean}}
 	local edges : {{EdgeId, boolean}} = {}
 	local ok = pcall(function()
 		if leg.line == nil then
-			local person = api.type["enum"].TransportMode.PERSON
-			local from = leg.fromBuilding ~= nil and route_lines.buildingNodes(leg.fromBuilding, person) or route_lines.stationNodes(leg.fromStation)
-			local to = leg.toBuilding ~= nil and route_lines.buildingNodes(leg.toBuilding, person) or route_lines.stationNodes(leg.toStation)
-			edges = route_lines.findPath(from, to, { person }) or {}
+			edges = walkPath(leg) or {}
 			return
 		end
 		local lineComp = component(leg.line, api.type.ComponentType.LINE) as Engine.Component.Line

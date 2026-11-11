@@ -28,7 +28,7 @@ support.WORLD = 1
 local kinds = {
   "GAME_TIME", "SIM_PERSON", "SIM_ENTITY_AT_BUILDING", "SIM_ENTITY_AT_TERMINAL", "SIM_ENTITY_AT_VEHICLE",
   "SIM_ENTITY_MOVING", "SIM_PERSON_AT_VEHICLE", "LAND_VEHICLE", "MOVE_PATH", "MODEL_PERSON", "LINE", "STATION_GROUP",
-  "TRANSPORT_NETWORK", "PERSON_CAPACITY", "TOWN_BUILDING", "TRANSPORT_VEHICLE", "STATION", "PARCEL", "BASE_EDGE",
+  "TRANSPORT_NETWORK", "PERSON_CAPACITY", "TOWN_BUILDING", "TRANSPORT_VEHICLE", "STATION", "PARCEL", "BASE_EDGE", "TP_NET_LINK",
 }
 
 -- Installs the global `api` with a world of entities. `world[entity][kind]` is the component. The other fields of the
@@ -39,6 +39,8 @@ function support.installApi(world)
   _G.api = {
     type = {
       ComponentType = componentType,
+      EdgeId = { new = function(entity, index) return { entity = entity, index = index } end },
+      NodeId = { new = function(entity, index) return { entity = entity, index = index } end },
       enum = {
         MoveMode = { WALK = 0, DRIVE = 1, LINES = 2 },
         TransportMode = { PERSON = 0, CARGO = 1, CAR = 2, BUS = 3 },
@@ -59,6 +61,7 @@ function support.installApi(world)
         catchmentAreaSystem = {},
         lineSystem = {},
         transportVehicleSystem = {},
+        tpNetLinkSystem = {},
       },
     },
   }

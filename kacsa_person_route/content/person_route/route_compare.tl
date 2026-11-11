@@ -155,28 +155,86 @@ local function directOption(kind : string, chosen : boolean, state : PrcRouteSta
 	return option(kind, chosen, { finish(leg, walkSpeed) })
 end
 
+-- One walk for walks that follow each other: from the start of the first to the end of the last, on the path of the
+-- pathfinder between these two places. When the pathfinder finds no such path, the walk is the sum of its parts. A part
+-- between a building and a station counts only when the pathfinder finds it. nil when no part counts.
+local function joinedWalk(walks : {PrcRouteLeg}, walkSpeed : number) : PrcRouteLeg
+	if #walks == 1 then
+		local only = finish(walks[1], walkSpeed)
+		if only.edges == nil and (only.fromBuilding ~= nil or only.toBuilding ~= nil) then
+			return nil
+		end
+		return only
+	end
+	local first, last = walks[1], walks[#walks]
+	local direct : PrcRouteLeg = { fromBuilding = first.fromBuilding, fromStation = first.fromStation, toBuilding = last.toBuilding, toStation = last.toStation }
+	if finish(direct, walkSpeed).edges ~= nil then
+		return direct
+	end
+
+	local sum : PrcRouteLeg = { seconds = 0, meters = 0 }
+	local edges : {{EdgeId, boolean}} = {}
+	local counted = false
+	for __, walk in ipairs(walks) do
+		local part = joinedWalk({ walk }, walkSpeed)
+		if part ~= nil then
+			if not counted then
+				sum.fromBuilding, sum.fromStation = part.fromBuilding, part.fromStation
+				counted = true
+			end
+			sum.toBuilding, sum.toStation = part.toBuilding, part.toStation
+			sum.seconds = sum.seconds + (part.seconds or 0)
+			sum.meters = sum.meters + (part.meters or 0)
+			for __, pair in ipairs(part.edges or {}) do
+				edges[#edges + 1] = pair
+			end
+		end
+	end
+	if not counted then
+		return nil
+	end
+	if #edges > 0 then
+		sum.edges = edges
+	end
+	return sum
+end
+
 -- The legs of a route by lines between two ends. An end is a building, with the walk between it and the nearest station
 -- of the route, or nothing. `startStation` and `endStation` are the ends of the route when it has no legs.
 local function assemble(routeLegs : {PrcRouteLeg}, originEntity : Engine.Entity, startStation : Engine.Entity, endStation : Engine.Entity,
 	targetEntity : Engine.Entity, walkSpeed : number) : {PrcRouteLeg}
-	local legs : {PrcRouteLeg} = {}
-	-- A walk between a building and a station counts only when the pathfinder finds it.
-	local function walk(leg : PrcRouteLeg)
-		if finish(leg, walkSpeed).edges ~= nil then
-			legs[#legs + 1] = leg
-		end
-	end
+	local parts : {PrcRouteLeg} = {}
 	local first = routeLegs[1] and routeLegs[1].fromStation or startStation
 	if originEntity ~= nil and first ~= nil then
-		walk({ fromBuilding = originEntity, toStation = first })
+		parts[#parts + 1] = { fromBuilding = originEntity, toStation = first }
 	end
 	for __, leg in ipairs(routeLegs) do
-		legs[#legs + 1] = finish(leg, walkSpeed)
+		parts[#parts + 1] = leg
 	end
 	local last = #routeLegs > 0 and routeLegs[#routeLegs].toStation or endStation
 	if targetEntity ~= nil and last ~= nil then
-		walk({ fromStation = last, toBuilding = targetEntity })
+		parts[#parts + 1] = { fromStation = last, toBuilding = targetEntity }
 	end
+
+	-- Walks that follow each other become one leg.
+	local legs : {PrcRouteLeg} = {}
+	local walks : {PrcRouteLeg} = {}
+	local function closeWalks()
+		local joined = #walks > 0 and joinedWalk(walks, walkSpeed) or nil
+		if joined ~= nil then
+			legs[#legs + 1] = joined
+		end
+		walks = {}
+	end
+	for __, leg in ipairs(parts) do
+		if leg.line == nil then
+			walks[#walks + 1] = leg
+		else
+			closeWalks()
+			legs[#legs + 1] = finish(leg, walkSpeed)
+		end
+	end
+	closeWalks()
 	return legs
 end
 
@@ -343,7 +401,7 @@ route_compare.compare = function(personEntity : Engine.Entity, state : PrcRouteS
 	local moveModes = api.type["enum"].MoveMode
 	local walkSpeed = math.max(simPerson.walkSpeed or 0, MIN_SPEED_MPS)
 	local current = route_state.currentPath(personEntity)
-	route_lines.batch(function()
+	local platformWalks, entranceWalks, nearestWalks = route_lines.batch(function()
 		result.options[1] = directOption("walk", result.chosen == moveModes.WALK, state, current, walkSpeed)
 		result.options[2] = directOption("car", result.chosen == moveModes.DRIVE, state, current, walkSpeed)
 		for __, lines in ipairs(linesOptions(state, result.chosen == moveModes.LINES, current, walkSpeed)) do
@@ -352,7 +410,8 @@ route_compare.compare = function(personEntity : Engine.Entity, state : PrcRouteS
 	end)
 	table.sort(result.options, bySeconds)
 	print(LOG_PREFIX .. "options of person " .. tostring(personEntity) .. ": " .. tostring(#result.options) .. " in "
-		.. string.format("%.0f", (os.clock() - started) * MS_PER_SECOND) .. " ms")
+		.. string.format("%.0f", (os.clock() - started) * MS_PER_SECOND) .. " ms, station walks: " .. tostring(platformWalks)
+		.. " by platform, " .. tostring(entranceWalks) .. " by entrance, " .. tostring(nearestWalks) .. " by nearest street")
 	return result
 end
 

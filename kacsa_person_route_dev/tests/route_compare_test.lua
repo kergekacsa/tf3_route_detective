@@ -284,6 +284,49 @@ options = linesOptions(route_compare.compare(PERSON, trip({ phase = "waiting", l
 check("shortlist: the route the game chose stays, also as the third", #options == 3 and near(options[3].seconds, 100 + 300 + 700 + 100) and options[3].chosen
   and not options[1].chosen)
 
+-- The line ends one station before the target: the walk between the two stations and the walk to the building are one leg
+local function walkWorld()
+  local w = baseWorld()
+  w[LINE_SHARED].LINE.stops = { { stationGroup = GROUP, station = 0, terminal = 0 }, { stationGroup = GROUP, station = 1, terminal = 0 } }
+  return w
+end
+local function wireWalk(failingPersonCalls)
+  return function(api)
+    api.engine.system.lineSystem.getLineStopsForStation = function(stationEntity)
+      if stationEntity == STATION_O then return { { LINE_SHARED, 0 } } end
+      if stationEntity == STATION_FAR then return { { LINE_SHARED, 1 } } end
+      return {}
+    end
+    api.engine.system.catchmentAreaSystem.getStation2stationsAndDistancesMap = function()
+      return { [STATION_FAR] = { [STATION_T] = 300 }, [STATION_T] = { [STATION_FAR] = 300 } }
+    end
+    local find = api.engine.util.pathfinding.findPathNodeToNode
+    local personCalls = 0
+    api.engine.util.pathfinding.findPathNodeToNode = function(fromNodes, toNodes, modes)
+      if modes[1] == PERSON_MODE then
+        personCalls = personCalls + 1
+        if failingPersonCalls[personCalls] then return {} end
+      end
+      return find(fromNodes, toNodes, modes)
+    end
+  end
+end
+
+load(walkWorld(), wireWalk({}))
+lines = kind(route_compare.compare(PERSON, trip()), "lines")
+check("joined walk: the walk between two stations and the walk to the building are one leg", #lines.legs == 3 and lines.legs[2].line == LINE_SHARED
+  and lines.legs[3].fromStation == STATION_FAR and lines.legs[3].toBuilding == TARGET and lines.legs[3].toStation == nil)
+check("joined walk: its path is the path between its two ends", #lines.legs[3].edges == 2 and near(lines.legs[3].meters, 150)
+  and near(lines.legs[3].seconds, 100) and near(lines.seconds, 100 + 300 + 60 + 100))
+
+-- The calls for a walk: the walk option, then both directions of the walk to the first station, of the joined walk, and of
+-- each of its two parts
+load(walkWorld(), wireWalk({ [4] = true, [5] = true }))
+lines = kind(route_compare.compare(PERSON, trip()), "lines")
+check("joined walk: without a path between its ends it is the sum of its parts", #lines.legs == 3 and #lines.legs[3].edges == 4
+  and near(lines.legs[3].meters, 300) and near(lines.legs[3].seconds, 200) and lines.legs[3].fromStation == STATION_FAR
+  and lines.legs[3].toBuilding == TARGET)
+
 -- Two options with the same shown time: the choice of the game comes first
 load(baseWorld({ SIM_PERSON = { lastMoveMode = WALK, walkSpeed = 5.3 } }))
 c = route_compare.compare(PERSON, trip())

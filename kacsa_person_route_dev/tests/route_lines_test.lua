@@ -95,7 +95,10 @@ local function install(wire)
     return { { { entity = fromNodes[1].entity, index = toNodes[1].entity }, true } }
   end
   if wire then wire(api) end
-  return ug_require("kacsa_person_route::/person_route/route_lines.tl")
+  -- The module is loaded once for all tests, so what it keeps between computations is dropped here.
+  local module = ug_require("kacsa_person_route::/person_route/route_lines.tl")
+  module.forgetEntrances()
+  return module
 end
 
 local route_lines = install()
@@ -177,13 +180,16 @@ edges = route_lines.legPath({ line = LINE_A, fromStopIndex = 2, toStopIndex = 0 
 check("leg path: wraps around the end of the line", #edges == 1 and edges[1][1].entity == S3 and edges[1][1].index == S1)
 pathCalls = {}
 edges = route_lines.legPath({ fromStation = S3, toStation = S4 })
-check("leg path: a walk between stations runs between their nearest street edges for persons, on foot", #edges == 1 and edges[1][1].entity == STREET + S3
-  and edges[1][1].index == STREET + S4 and #pathCalls[1].from == 2 and pathCalls[1].from[1].index == 0 and pathCalls[1].modes[1] == 0)
+check("leg path: a walk between stations runs between the person nodes of their terminals, on foot", #edges == 1 and edges[1][1].entity == S3
+  and edges[1][1].index == S4 and #pathCalls[1].from == 1 and pathCalls[1].from[1].index == 1 and pathCalls[1].modes[1] == 0)
+check("leg path: a walk is asked in both directions", #pathCalls == 2 and pathCalls[2].from[1].entity == S4 and pathCalls[2].to[1].entity == S3)
 pathCalls = {}
 edges = route_lines.legPath({ fromBuilding = BUILDING, toStation = S4 })
-check("leg path: a walk from a building starts at the street of its parcels", #edges == 1 and edges[1][1].entity == STREET + S1 and edges[1][1].index == STREET + S4)
+check("leg path: a walk from a building starts at the street of its parcels and ends at a platform", #edges == 1 and edges[1][1].entity == STREET + S1
+  and edges[1][1].index == S4)
 edges = route_lines.legPath({ fromStation = S4, toBuilding = BUILDING })
-check("leg path: a walk to a building ends at the street of its parcels", #edges == 1 and edges[1][1].entity == STREET + S4 and edges[1][1].index == STREET + S1)
+check("leg path: a walk to a building starts at a platform and ends at the street of its parcels", #edges == 1 and edges[1][1].entity == S4
+  and edges[1][1].index == STREET + S1)
 local known = { { { entity = 1, index = 2 }, true } }
 check("leg path: the edges a leg carries are returned as they are", route_lines.legPath({ fromStation = S4, toBuilding = BUILDING, edges = known }) == known)
 
@@ -206,6 +212,94 @@ route_lines = install(function(api)
   end
 end)
 check("leg path: nil when one section has no path", route_lines.legPath({ line = LINE_A, fromStopIndex = 0, toStopIndex = 2 }) == nil)
+
+-- No path from or to a platform: the walk uses the street edge nearest to the station
+route_lines = install(function(api)
+  api.engine.util.pathfinding.findPathNodeToNode = function(fromNodes, toNodes, modes)
+    pathCalls[#pathCalls + 1] = { from = fromNodes, to = toNodes, modes = modes }
+    if fromNodes[1].entity < STREET or toNodes[1].entity < STREET then return {} end
+    return { { { entity = fromNodes[1].entity, index = toNodes[1].entity }, true } }
+  end
+end)
+local platformWalks, entranceWalks, nearestWalks = route_lines.batch(function()
+  edges = route_lines.legPath({ fromStation = S3, toStation = S4 })
+end)
+check("leg path: without a path between platforms, the walk runs between the nearest street edges", #edges == 1 and edges[1][1].entity == STREET + S3
+  and edges[1][1].index == STREET + S4 and #pathCalls == 4 and #pathCalls[3].from == 2)
+check("batch: counts the walk by the nearest street", platformWalks == 0 and entranceWalks == 0 and nearestWalks == 1)
+
+-- Station S3 has links to two streets: its entrances. A link to a car edge and a link inside the station do not count.
+local LINK_A, LINK_B, LINK_CAR, LINK_OWN = 3001, 3002, 3003, 3004
+local linkQueries = 0
+route_lines = install(function(api)
+  local get = api.engine.getComponent
+  local own = { entity = S3, index = 0 }
+  local links = {
+    [LINK_A] = { from = { edgeId = own, param = 0 }, to = { edgeId = { entity = STREET + S5, index = 0 }, param = 0.5 } },
+    [LINK_B] = { from = { edgeId = { entity = STREET + S6, index = 0 }, param = 0.5 }, to = { edgeId = own, param = 1 } },
+    [LINK_CAR] = { from = { edgeId = own, param = 0 }, to = { edgeId = { entity = STREET + S5, index = 1 }, param = 0.5 } },
+    [LINK_OWN] = { from = { edgeId = own, param = 0 }, to = { edgeId = { entity = S3, index = 1 }, param = 0 } },
+  }
+  api.engine.getComponent = function(entity, kind)
+    if entity == S3 and kind == "TRANSPORT_NETWORK" then
+      return { edges = { { transportModes = { [0] = true }, linkable = 1 }, { transportModes = { [0] = true }, linkable = 0 } } }
+    end
+    if kind == "TP_NET_LINK" then return links[entity] end
+    return get(entity, kind)
+  end
+  api.engine.system.tpNetLinkSystem.getLinkEntities = function(edgeId)
+    assert(edgeId.entity == S3 and edgeId.index == 0, "only the linkable edge of the station is asked")
+    linkQueries = linkQueries + 1
+    return { LINK_A, LINK_B, LINK_CAR, LINK_OWN }
+  end
+  api.engine.util.pathfinding.findPathNodeToNode = function(fromNodes, toNodes, modes)
+    pathCalls[#pathCalls + 1] = { from = fromNodes, to = toNodes, modes = modes }
+    if fromNodes[1].entity < STREET or toNodes[1].entity < STREET then return {} end
+    return { { { entity = fromNodes[1].entity, index = toNodes[1].entity }, true } }
+  end
+end)
+platformWalks, entranceWalks, nearestWalks = route_lines.batch(function()
+  edges = route_lines.legPath({ fromStation = S3, toStation = S4 })
+end)
+check("entrances: the walk starts at the street edges that links join to the station", #edges == 1 and edges[1][1].entity == STREET + S5
+  and #pathCalls[3].from == 4 and pathCalls[3].from[3].entity == STREET + S6 and pathCalls[3].from[1].index == 0)
+check("entrances: the other station is first its platform, then its nearest street edge", #pathCalls[1].to == 1 and pathCalls[1].to[1].entity == S4
+  and edges[1][1].index == STREET + S4 and #pathCalls[3].to == 2)
+check("batch: counts the walk by entrance", platformWalks == 0 and entranceWalks == 1 and nearestWalks == 0)
+route_lines.batch(function()
+  edges = route_lines.legPath({ fromStation = S3, toStation = S4 })
+end)
+check("entrances: read once and kept for the next computation", linkQueries == 1 and edges[1][1].entity == STREET + S5)
+route_lines.forgetEntrances()
+route_lines.batch(function()
+  route_lines.legPath({ fromStation = S3, toStation = S4 })
+end)
+check("entrances: read again after they are forgotten", linkQueries == 2)
+
+-- The two directions of a walk give paths of different lengths: the shorter one counts
+route_lines = install(function(api)
+  local get = api.engine.getComponent
+  api.engine.getComponent = function(entity, kind)
+    if entity == 4000 and kind == "TRANSPORT_NETWORK" then
+      return { edges = { { geometry = { length = 300 } }, { geometry = { length = 100 } } } }
+    end
+    return get(entity, kind)
+  end
+  api.engine.util.pathfinding.findPathNodeToNode = function(fromNodes)
+    return { { { entity = 4000, index = fromNodes[1].entity == S3 and 0 or 1 }, true } }
+  end
+end)
+edges = route_lines.legPath({ fromStation = S3, toStation = S4 })
+check("both directions: the path from the far end is shorter and counts", #edges == 1 and edges[1][1].index == 1)
+edges = route_lines.legPath({ fromStation = S4, toStation = S3 })
+check("both directions: the forward path is shorter and counts", #edges == 1 and edges[1][1].index == 1)
+
+route_lines = install()
+platformWalks, entranceWalks, nearestWalks = route_lines.batch(function()
+  route_lines.legPath({ fromStation = S3, toStation = S4 })
+  route_lines.legPath({ fromBuilding = BUILDING, toStation = S4 })
+end)
+check("batch: two walks by platform", platformWalks == 2 and entranceWalks == 0 and nearestWalks == 0)
 
 -- Stations in reach
 route_lines = install()

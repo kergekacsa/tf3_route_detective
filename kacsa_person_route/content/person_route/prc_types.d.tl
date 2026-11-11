@@ -100,8 +100,10 @@ global record PrcRouteLinesModule
 	--- nearest of the target stations.
 	search : function(targetStations : {Engine.Entity}, walkSpeed : number) : PrcLineSearch
 	--- Runs a function that asks for routes, paths, and stations many times. The data of the engine that these calls share
-	--- is fetched once for the whole function.
-	batch : function(fn : function())
+	--- is fetched once for the whole function. Returns how many walks with a station at one end got their path from or to
+	--- a platform of the station, how many from or to a street edge at an entrance, and how many only from or to the
+	--- street edge nearest to the station.
+	batch : function(fn : function()) : integer, integer, integer
 	--- The stations whose catchment area holds one of the entities.
 	stationsInReach : function(entities : {Engine.Entity}) : {Engine.Entity}
 	--- The seconds a vehicle needs from one stop of a line to another, from its section times. nil when the line has no vehicle.
@@ -113,9 +115,13 @@ global record PrcRouteLinesModule
 	--- pathfinder gives none: a text key of the mod, or the message of the failed call.
 	findPath : function(fromNodes : {NodeId}, toNodes : {NodeId}, modes : {TransportMode}) : {{EdgeId, boolean}}, string
 	--- The edges a leg runs over: for a ride the path of the game's pathfinder from stop to stop between the nodes where
-	--- the vehicles of the line stop, for a walk the path on foot between its two ends. nil when the pathfinder gives no
+	--- the vehicles of the line stop, for a walk the shorter of the two paths on foot between its two ends, where a station
+	--- end is the street edges at its entrances, or its platforms, or the street edge nearest to it. nil when the pathfinder gives no
 	--- path for a part of it.
 	legPath : function(leg : PrcRouteLeg) : {{EdgeId, boolean}}
+	--- Forgets the entrances of the stations, which are read once and then kept. Call it when the player may have built
+	--- at a station.
+	forgetEntrances : function()
 	--- The nodes of the street edges next to a town building that allow a transport mode: the streets of its parcels.
 	--- Empty for an entity without parcels.
 	buildingNodes : function(entity : Engine.Entity, mode : TransportMode) : {NodeId}

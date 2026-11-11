@@ -14,6 +14,7 @@ local selector_react_util = ug_require "::/gui/main/selector_react_util.tl" as S
 local styleutil = ug_require "::/gui/main/styleutil.tl" as StyleUtil
 local route_state = ug_require "kacsa_person_route::/person_route/route_state.tl" as PrcRouteStateModule
 local route_compare = ug_require "kacsa_person_route::/person_route/route_compare.tl" as PrcRouteCompareModule
+local route_lines = ug_require "kacsa_person_route::/person_route/route_lines.tl" as PrcRouteLinesModule
 
 local route_card : PrcRouteCard = {}
 
@@ -689,6 +690,7 @@ local RouteDetails = react.RegisterRecipe("PrcRouteDetails", function(param : Pe
 			builtin.Button{
 				content = text(_("prc_recalculate")),
 				onClick = function()
+					route_lines.forgetEntrances()
 					refreshToken:set(refreshToken:get() + 1)
 				end,
 			},
