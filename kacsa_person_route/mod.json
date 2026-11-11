@@ -1,0 +1,22 @@
+{
+  "modId": "kacsa_person_route",
+  "revision": 1,
+  "dependencies": null,
+  "incompatibilities": null,
+  "options": null,
+  "preRunScript": {
+    "fileName": ""
+  },
+  "runScript": {
+    "fileName": ""
+  },
+  "postRunScript": {
+    "fileName": ""
+  },
+  "severityAdd": "None",
+  "severityRemove": "None",
+  "cosmetic": true,
+  "visible": true,
+  "url": "",
+  "params": []
+}
