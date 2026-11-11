@@ -1,6 +1,6 @@
 {
   "modId": "kacsa_person_route",
-  "revision": 2,
+  "revision": 3,
   "dependencies": null,
   "incompatibilities": null,
   "options": null,
@@ -18,5 +18,17 @@
   "cosmetic": true,
   "visible": true,
   "url": "",
-  "params": []
+  "params": [
+    {
+      "key": "prc_auto_show",
+      "name": "prc_setting_auto_show",
+      "tooltip": "prc_setting_auto_show_tip",
+      "uiType": "Button",
+      "values": [
+        "prc_off",
+        "prc_on"
+      ],
+      "defaultIndex": 1
+    }
+  ]
 }

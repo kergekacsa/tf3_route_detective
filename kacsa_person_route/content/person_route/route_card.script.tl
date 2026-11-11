@@ -71,6 +71,11 @@ local CLASS_CURRENT <const> = "prc-current"
 local ICON_BULLET <const> = "::/gui/main/icons/circle.tga"
 local CLASS_BULLET <const> = "prc-bullet"
 local TOOL_KEY_PREFIX <const> = "prc_paths_"
+local MOD_ID <const> = "kacsa_person_route"
+-- The setting of mod.json that opens the card with the window of a person. The game hands out the position of the
+-- chosen value, counted from 1: Off is 1, On is 2.
+local SETTING_OPEN_CARD <const> = "prc_auto_show"
+local SETTING_OFF <const> = 1
 -- The view manager names the window of an entity this way (gui/entity_window/view_manager.tl, makeWindowId).
 local WINDOW_ID_PREFIX <const> = "temp.view.entity_"
 
@@ -401,7 +406,7 @@ local function legRows(s : PrcRouteState) : {TreeNodeId}
 	return rows
 end
 
--- Which options the player switched on for the map, by key.
+-- Options on the map by key: true for shown, false for hidden.
 local type Shown = {string : boolean}
 
 local function showButton(key : string, shown : Shown, setShown : function(string, boolean)) : TreeNodeId
@@ -576,6 +581,21 @@ local function mapPaths(c : PrcCompareResult, shown : Shown) : {PrcMapPath}
 	return paths
 end
 
+-- The options on the map: what the player switched, and the option the game chose as long as the player did not switch
+-- it.
+local function shownOptions(c : PrcCompareResult, switched : Shown) : Shown
+	local shown : Shown = {}
+	for __, option in ipairs(c ~= nil and c.options or {}) do
+		local key = optionKey(option)
+		local on = switched[key]
+		if on == nil then
+			on = option.chosen == true and option.available
+		end
+		shown[key] = on
+	end
+	return shown
+end
+
 local function signatureOf(paths : {PrcMapPath}, tripKey : string) : string
 	local parts : {string} = { tripKey or "" }
 	for __, path in ipairs(paths) do
@@ -615,22 +635,20 @@ local RouteDetails = react.RegisterRecipe("PrcRouteDetails", function(param : Pe
 
 	local s = state:old()
 	local c = compared:old()
-	local shown = shownState:old()
+	local shown = shownOptions(c, shownState:old())
 
 	local function setShown(key : string, on : boolean)
 		local updated : Shown = {}
 		for k, v in pairs(shownState:old()) do
 			updated[k] = v
 		end
-		updated[key] = on or nil
+		updated[key] = on
 		shownState:set(updated)
 	end
 	local function setAll(on : boolean)
 		local updated : Shown = {}
-		for __, option in ipairs(on and c ~= nil and c.options or {}) do
-			if option.available then
-				updated[optionKey(option)] = true
-			end
+		for __, option in ipairs(c ~= nil and c.options or {}) do
+			updated[optionKey(option)] = on and option.available
 		end
 		shownState:set(updated)
 	end
@@ -710,8 +728,23 @@ local RouteDetails = react.RegisterRecipe("PrcRouteDetails", function(param : Pe
 	}
 end)
 
+-- True unless the player switched the setting off. A game that was set up before the setting existed has no value for it.
+local function opensWithWindow() : boolean
+	local value : any
+	pcall(function()
+		local settings = api.engine.config.getModParams()[MOD_ID] as {string : any}
+		value = settings and settings[SETTING_OPEN_CARD]
+	end as function() : any)
+	return tonumber(value) ~= SETTING_OFF
+end
+
 route_card.RouteCardPlugin = react.RegisterPluginRecipe(EXTENSION_POINT, "PrcRouteCardPlugin", function(extensionParams : SimPersonEow.SimPersonWidgetPluginParams) : TreeNodeId
 	local uniqueCardKey = tostring(react.getCurrentRecipeId())
+	react.onMount(function()
+		if opensWithWindow() then
+			extensionParams.setCollapsibleExpanded(uniqueCardKey, true)
+		end
+	end)
 	return builtin.BoxLayout{
 		child = content_card.ContentCard{
 			title = _("prc_card_title"),

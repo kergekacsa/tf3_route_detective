@@ -30,7 +30,11 @@
         "prc_options_title": "Options",
         "prc_public_transport": "Public transport",
         "prc_minutes": "{minutes} min",
-        "prc_step_wait": "({time} waiting)"
+        "prc_step_wait": "({time} waiting)",
+        "prc_on": "On",
+        "prc_off": "Off",
+        "prc_setting_auto_show": "Show the route when a person is selected",
+        "prc_setting_auto_show_tip": "On: when you select a person, the Route card opens and the route the game chose is drawn on the map. Off: the card opens only when you click it."
     },
     "de": {
         "prc_card_title": "Route",
@@ -63,7 +67,11 @@
         "prc_options_title": "Optionen",
         "prc_public_transport": "Öffentlicher Verkehr",
         "prc_minutes": "{minutes} min",
-        "prc_step_wait": "({time} Wartezeit)"
+        "prc_step_wait": "({time} Wartezeit)",
+        "prc_on": "Ein",
+        "prc_off": "Aus",
+        "prc_setting_auto_show": "Route beim Auswählen einer Person anzeigen",
+        "prc_setting_auto_show_tip": "Ein: Wenn du eine Person auswählst, öffnet sich der Bereich „Route“, und die vom Spiel gewählte Route wird in der Welt eingezeichnet. Aus: Der Bereich öffnet sich erst, wenn du ihn anklickst."
     },
     "es": {
         "prc_card_title": "Ruta",
@@ -96,7 +104,11 @@
         "prc_options_title": "Opciones",
         "prc_public_transport": "Transporte público",
         "prc_minutes": "{minutes} min",
-        "prc_step_wait": "({time} de espera)"
+        "prc_step_wait": "({time} de espera)",
+        "prc_on": "Sí",
+        "prc_off": "No",
+        "prc_setting_auto_show": "Mostrar la ruta al seleccionar una persona",
+        "prc_setting_auto_show_tip": "Sí: al seleccionar una persona, se abre la tarjeta Ruta y la ruta elegida por el juego se dibuja en el mapa. No: la tarjeta solo se abre al hacer clic en ella."
     },
     "fr": {
         "prc_card_title": "Itinéraire",
@@ -129,7 +141,11 @@
         "prc_options_title": "Options",
         "prc_public_transport": "Transports publics",
         "prc_minutes": "{minutes} min",
-        "prc_step_wait": "({time} d’attente)"
+        "prc_step_wait": "({time} d’attente)",
+        "prc_on": "Activé",
+        "prc_off": "Désactivé",
+        "prc_setting_auto_show": "Afficher l’itinéraire à la sélection d’une personne",
+        "prc_setting_auto_show_tip": "Activé : quand vous sélectionnez une personne, la fiche Itinéraire s’ouvre et l’itinéraire choisi par le jeu est tracé sur la carte. Désactivé : la fiche ne s’ouvre que si vous cliquez dessus."
     },
     "it": {
         "prc_card_title": "Tragitto",
@@ -162,7 +178,11 @@
         "prc_options_title": "Opzioni",
         "prc_public_transport": "Trasporto pubblico",
         "prc_minutes": "{minutes} min",
-        "prc_step_wait": "({time} di attesa)"
+        "prc_step_wait": "({time} di attesa)",
+        "prc_on": "Sì",
+        "prc_off": "No",
+        "prc_setting_auto_show": "Mostra il tragitto quando selezioni una persona",
+        "prc_setting_auto_show_tip": "Sì: quando selezioni una persona, la scheda Tragitto si apre e il tragitto scelto dal gioco viene disegnato sulla mappa. No: la scheda si apre solo quando ci clicchi sopra."
     },
     "ja": {
         "prc_card_title": "ルート",
@@ -195,7 +215,11 @@
         "prc_options_title": "オプション",
         "prc_public_transport": "公共輸送機関",
         "prc_minutes": "{minutes} 分",
-        "prc_step_wait": "(待ち時間 {time})"
+        "prc_step_wait": "(待ち時間 {time})",
+        "prc_on": "オン",
+        "prc_off": "オフ",
+        "prc_setting_auto_show": "人物を選択したときにルートを表示",
+        "prc_setting_auto_show_tip": "オン：人物を選択すると「ルート」カードが開き、ゲームが選んだルートがマップに描かれます。オフ：カードはクリックしたときだけ開きます。"
     },
     "ko": {
         "prc_card_title": "경로",
@@ -228,7 +252,11 @@
         "prc_options_title": "옵션",
         "prc_public_transport": "대중교통",
         "prc_minutes": "{minutes}분",
-        "prc_step_wait": "(대기 시간 {time})"
+        "prc_step_wait": "(대기 시간 {time})",
+        "prc_on": "켜기",
+        "prc_off": "끄기",
+        "prc_setting_auto_show": "사람을 선택하면 경로 표시",
+        "prc_setting_auto_show_tip": "켜기: 사람을 선택하면 경로 카드가 열리고 게임이 선택한 경로가 지도에 그려집니다. 끄기: 카드를 클릭할 때만 열립니다."
     },
     "nl": {
         "prc_card_title": "Route",
@@ -261,7 +289,11 @@
         "prc_options_title": "Opties",
         "prc_public_transport": "Openbaar vervoer",
         "prc_minutes": "{minutes} min.",
-        "prc_step_wait": "({time} wachttijd)"
+        "prc_step_wait": "({time} wachttijd)",
+        "prc_on": "Aan",
+        "prc_off": "Uit",
+        "prc_setting_auto_show": "Route tonen bij het selecteren van een persoon",
+        "prc_setting_auto_show_tip": "Aan: als je een persoon selecteert, opent het vak Route en wordt de route die het spel koos op de kaart getekend. Uit: het vak opent alleen als je erop klikt."
     },
     "pl": {
         "prc_card_title": "Trasa",
@@ -294,7 +326,11 @@
         "prc_options_title": "Opcje",
         "prc_public_transport": "Transport publiczny",
         "prc_minutes": "{minutes} min",
-        "prc_step_wait": "({time} oczekiwania)"
+        "prc_step_wait": "({time} oczekiwania)",
+        "prc_on": "Wł.",
+        "prc_off": "Wył.",
+        "prc_setting_auto_show": "Pokaż trasę po wybraniu osoby",
+        "prc_setting_auto_show_tip": "Wł.: po wybraniu osoby otwiera się karta Trasa, a trasa wybrana przez grę jest rysowana na mapie. Wył.: karta otwiera się dopiero po kliknięciu."
     },
     "pt_BR": {
         "prc_card_title": "Rota",
@@ -327,7 +363,11 @@
         "prc_options_title": "Opções",
         "prc_public_transport": "Transporte Público",
         "prc_minutes": "{minutes} min",
-        "prc_step_wait": "({time} de espera)"
+        "prc_step_wait": "({time} de espera)",
+        "prc_on": "Ligado",
+        "prc_off": "Desligado",
+        "prc_setting_auto_show": "Mostrar a rota ao selecionar uma pessoa",
+        "prc_setting_auto_show_tip": "Ligado: ao selecionar uma pessoa, o cartão Rota abre e a rota escolhida pelo jogo é desenhada no mapa. Desligado: o cartão só abre quando você clica nele."
     },
     "ru": {
         "prc_card_title": "Маршрут",
@@ -360,7 +400,11 @@
         "prc_options_title": "Варианты",
         "prc_public_transport": "Общественный транспорт",
         "prc_minutes": "{minutes} мин.",
-        "prc_step_wait": "({time} ожидания)"
+        "prc_step_wait": "({time} ожидания)",
+        "prc_on": "Вкл.",
+        "prc_off": "Выкл.",
+        "prc_setting_auto_show": "Показывать маршрут при выборе человека",
+        "prc_setting_auto_show_tip": "Вкл.: при выборе человека открывается карточка «Маршрут», а выбранный игрой маршрут рисуется на карте. Выкл.: карточка открывается только по щелчку."
     },
     "zh_CN": {
         "prc_card_title": "路线",
@@ -393,7 +437,11 @@
         "prc_options_title": "方案",
         "prc_public_transport": "公共交通",
         "prc_minutes": "{minutes} 分钟",
-        "prc_step_wait": "(等待 {time})"
+        "prc_step_wait": "(等待 {time})",
+        "prc_on": "打开",
+        "prc_off": "关闭",
+        "prc_setting_auto_show": "选择人物时显示路线",
+        "prc_setting_auto_show_tip": "打开：选择人物时，“路线”卡片会自动展开，并在地图上绘制游戏选择的路线。关闭：仅在点击卡片时展开。"
     },
     "zh_TW": {
         "prc_card_title": "途徑",
@@ -426,6 +474,10 @@
         "prc_options_title": "方案",
         "prc_public_transport": "大眾交通",
         "prc_minutes": "{minutes}分",
-        "prc_step_wait": "(等待 {time})"
+        "prc_step_wait": "(等待 {time})",
+        "prc_on": "開啟",
+        "prc_off": "關閉",
+        "prc_setting_auto_show": "選擇人物時顯示途徑",
+        "prc_setting_auto_show_tip": "開啟：選擇人物時，「途徑」卡片會自動展開，並在地圖上繪製遊戲選擇的途徑。關閉：僅在點擊卡片時展開。"
     }
 }
