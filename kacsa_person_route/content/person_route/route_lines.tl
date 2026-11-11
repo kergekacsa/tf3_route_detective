@@ -119,7 +119,7 @@ local function sectionTimes(line : Engine.Entity) : {number}
 	return copy
 end
 
-local function waitSeconds(line : Engine.Entity) : number
+route_lines.waitSeconds = function(line : Engine.Entity) : number
 	local frequency = api.engine.util.line.getMaxFrequency(line)
 	if frequency == nil or frequency < MIN_FREQUENCY then
 		return nil
@@ -285,7 +285,7 @@ local function buildNetwork(walkSpeed : number) : Network
 	local function lineInfo(line : Engine.Entity) : LineInfo
 		local info = lines[line]
 		if info == nil then
-			info = { stations = {}, times = sectionTimes(line), wait = waitSeconds(line) }
+			info = { stations = {}, times = sectionTimes(line), wait = route_lines.waitSeconds(line) }
 			local comp = component(line, api.type.ComponentType.LINE) as Engine.Component.Line
 			for i = 1, comp and comp.stops and #comp.stops or 0 do
 				info.stations[i] = route_state.stationOfStop(line, i - 1)

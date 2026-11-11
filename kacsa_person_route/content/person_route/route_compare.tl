@@ -13,8 +13,13 @@ local MAX_LINE_CANDIDATES <const> = 5
 -- The second route by lines is listed when its time is at most this multiple of the time of the shortest.
 local SECOND_ROUTE_MAX_RATIO <const> = 1.10
 local MIN_SPEED_MPS <const> = 1.0
-local LINE_COLOR_ALPHA <const> = 0.95
 local MS_PER_SECOND <const> = 1000
+local SECONDS_PER_MINUTE <const> = 60
+-- The card shows the time of a walk or a drive with the formatter of the game, which gave seconds for 96 s and minutes
+-- for 4 min. Below this many seconds, two such times count as the same only when their whole seconds are the same.
+local SHOWN_IN_SECONDS_BELOW <const> = 120
+-- The part of a minute from which the minutes of an option are rounded up.
+local ROUND_UP_FROM <const> = 0.5
 local LOG_PREFIX <const> = "[PersonRoute] "
 
 local function component(entity : Engine.Entity, kind : Engine.ComponentType) : any
@@ -44,16 +49,7 @@ route_compare.pathLengthAndTime = function(edges : {{EdgeId, boolean}}) : number
 	return meters, seconds
 end
 
-local function lineColor(line : Engine.Entity) : {number}
-	local color : {number}
-	pcall(function()
-		local c = (component(line, api.type.ComponentType.COLOR) as Engine.Component.Color).color
-		color = { c.x, c.y, c.z, LINE_COLOR_ALPHA }
-	end)
-	return color
-end
-
--- Completes a leg: its edges, its length, the colour of its line, and its time when the leg is a walk or a drive over
+-- Completes a leg: its edges, its length, and its time when the leg is a walk or a drive over
 -- known edges. A walk between two stations without a path keeps the time from the distance between the stations.
 local function finish(leg : PrcRouteLeg, walkSpeed : number) : PrcRouteLeg
 	leg.edges = route_lines.legPath(leg)
@@ -68,14 +64,67 @@ local function finish(leg : PrcRouteLeg, walkSpeed : number) : PrcRouteLeg
 	elseif leg.line == nil and leg.seconds ~= nil then
 		leg.meters = leg.seconds * walkSpeed
 	end
-	if leg.line ~= nil then
-		leg.color = lineColor(leg.line)
-	end
 	return leg
 end
 
+local record MinutesPart
+	leg : PrcRouteLeg
+	wait : boolean
+	order : integer
+	-- the part of a minute that rounding down left out
+	rest : number
+end
+
+-- Sets the whole minutes of an option, and of the time and the wait of each of its legs. The parts add up to the minutes
+-- of the option: each part is rounded down, and the parts with the largest rest take the minutes that are still missing.
+local function setMinutes(result : PrcOption)
+	local parts : {MinutesPart} = {}
+	local given = 0
+	local function add(leg : PrcRouteLeg, value : number, wait : boolean)
+		if value == nil then
+			return
+		end
+		local minutes = math.floor(value / SECONDS_PER_MINUTE)
+		if wait then
+			leg.waitMinutes = minutes
+		else
+			leg.minutes = minutes
+		end
+		given = given + minutes
+		parts[#parts + 1] = { leg = leg, wait = wait, order = #parts + 1, rest = value / SECONDS_PER_MINUTE - minutes }
+	end
+	for __, leg in ipairs(result.legs) do
+		add(leg, leg.seconds, false)
+		add(leg, leg.waitSeconds, true)
+	end
+	result.minutes = math.floor(result.seconds / SECONDS_PER_MINUTE + ROUND_UP_FROM)
+	table.sort(parts, function(a : MinutesPart, b : MinutesPart) : boolean
+		if a.rest ~= b.rest then
+			return a.rest > b.rest
+		end
+		return a.order < b.order
+	end)
+	for i = 1, math.min(result.minutes - given, #parts) do
+		local part = parts[i]
+		if part.wait then
+			part.leg.waitMinutes = part.leg.waitMinutes + 1
+		else
+			part.leg.minutes = part.leg.minutes + 1
+		end
+	end
+end
+
+-- An option owns copies of its legs: two routes of the line search can share a leg, and the minutes of a leg depend on
+-- the option.
 local function option(kind : string, chosen : boolean, legs : {PrcRouteLeg}, note? : string) : PrcOption
-	local result : PrcOption = { kind = kind, chosen = chosen, legs = legs or {}, note = note }
+	local result : PrcOption = { kind = kind, chosen = chosen, legs = {}, note = note }
+	for i, leg in ipairs(legs or {}) do
+		local copy : {string : any} = {}
+		for field, value in pairs(leg as {string : any}) do
+			copy[field] = value
+		end
+		result.legs[i] = copy as PrcRouteLeg
+	end
 	result.available = #result.legs > 0
 	if result.available then
 		result.seconds = 0
@@ -84,6 +133,7 @@ local function option(kind : string, chosen : boolean, legs : {PrcRouteLeg}, not
 			result.seconds = result.seconds + (leg.seconds or 0) + (leg.waitSeconds or 0)
 			result.meters = result.meters + (leg.meters or 0)
 		end
+		setMinutes(result)
 	end
 	return result
 end
@@ -168,6 +218,7 @@ local function actualLines(state : PrcRouteState, current : {{EdgeId, boolean}},
 			fromStopIndex = state.boardStopIndex,
 			toStopIndex = state.leaveStopIndex,
 			seconds = route_lines.rideSeconds(state.line, state.boardStopIndex, state.leaveStopIndex),
+			waitSeconds = route_lines.waitSeconds(state.line),
 			current = not walking,
 		}, walkSpeed)
 		local after = search.routeFrom(state.leaveStation)
@@ -198,13 +249,32 @@ end
 
 local KIND_ORDER : {string : integer} = { walk = 1, car = 2, lines = 3 }
 
--- The shortest option first. An option that is not available comes last, and equal times keep walk, car, lines.
+-- The time of an option as the card shows it, in seconds: whole minutes, or whole seconds for a walk or a drive that is
+-- shorter than SHOWN_IN_SECONDS_BELOW.
+local function shownSeconds(candidate : PrcOption) : integer
+	if candidate.kind ~= "lines" and candidate.seconds < SHOWN_IN_SECONDS_BELOW then
+		return math.floor(candidate.seconds)
+	end
+	return candidate.minutes * SECONDS_PER_MINUTE
+end
+
+-- The shortest option first, by the time the card shows. Of options with the same shown time, the choice of the game
+-- comes first, then the shorter one, then walk, car, lines. An option that is not available comes last.
 local function bySeconds(a : PrcOption, b : PrcOption) : boolean
 	if a.available ~= b.available then
 		return a.available
 	end
-	if a.available and a.seconds ~= b.seconds then
-		return a.seconds < b.seconds
+	if a.available then
+		local shownA, shownB = shownSeconds(a), shownSeconds(b)
+		if shownA ~= shownB then
+			return shownA < shownB
+		end
+		if a.chosen ~= b.chosen then
+			return a.chosen == true
+		end
+		if a.seconds ~= b.seconds then
+			return a.seconds < b.seconds
+		end
 	end
 	return KIND_ORDER[a.kind] < KIND_ORDER[b.kind]
 end

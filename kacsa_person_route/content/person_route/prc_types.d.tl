@@ -63,8 +63,6 @@ global record PrcRouteLeg
 	car : boolean
 	--- the length of the leg in metres, nil when not known
 	meters : number
-	--- RGBA of the line of a ride
-	color : {number}
 	--- true for the leg the person is on, or waits for
 	current : boolean
 	--- the stops of the line where the person boards and leaves, nil for a walk
@@ -74,6 +72,10 @@ global record PrcRouteLeg
 	seconds : number
 	--- half the interval between two vehicles of the line; nil for a walk and for a line without frequency
 	waitSeconds : number
+	--- `seconds` and `waitSeconds` in whole minutes, rounded so that the legs of an option add up to its `minutes`;
+	--- set on the legs of an option, nil where the seconds are nil
+	minutes : integer
+	waitMinutes : integer
 end
 
 --- One route by lines: its legs in order, and the sum of their rides, waits, and walks.
@@ -104,6 +106,9 @@ global record PrcRouteLinesModule
 	stationsInReach : function(entities : {Engine.Entity}) : {Engine.Entity}
 	--- The seconds a vehicle needs from one stop of a line to another, from its section times. nil when the line has no vehicle.
 	rideSeconds : function(line : Engine.Entity, fromStop : integer, toStop : integer) : number
+	--- The average wait for a vehicle of a line in seconds: half the interval between two vehicles. nil when the line has no
+	--- frequency.
+	waitSeconds : function(line : Engine.Entity) : number
 	--- A path of the game's pathfinder between two sets of nodes, as plain copies of its edges. nil and a note when the
 	--- pathfinder gives none: a text key of the mod, or the message of the failed call.
 	findPath : function(fromNodes : {NodeId}, toNodes : {NodeId}, modes : {TransportMode}) : {{EdgeId, boolean}}, string
@@ -144,6 +149,8 @@ global record PrcOption
 	note : string
 	--- rides, waits, walks, or the drive together; nil when not available
 	seconds : number
+	--- `seconds` in whole minutes
+	minutes : integer
 	meters : number
 	--- one leg for a walk or a drive, the legs of the route for lines
 	legs : {PrcRouteLeg}

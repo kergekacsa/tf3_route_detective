@@ -28,7 +28,9 @@
         "prc_at": "At",
         "prc_in_town": "in {town}",
         "prc_options_title": "Options",
-        "prc_public_transport": "Public transport"
+        "prc_public_transport": "Public transport",
+        "prc_minutes": "{minutes} min",
+        "prc_step_wait": "({time} waiting)"
     },
     "de": {
         "prc_card_title": "Route",
@@ -59,7 +61,9 @@
         "prc_at": "In",
         "prc_in_town": "in {town}",
         "prc_options_title": "Optionen",
-        "prc_public_transport": "Öffentlicher Verkehr"
+        "prc_public_transport": "Öffentlicher Verkehr",
+        "prc_minutes": "{minutes} min",
+        "prc_step_wait": "({time} Wartezeit)"
     },
     "es": {
         "prc_card_title": "Ruta",
@@ -90,7 +94,9 @@
         "prc_at": "En",
         "prc_in_town": "en {town}",
         "prc_options_title": "Opciones",
-        "prc_public_transport": "Transporte público"
+        "prc_public_transport": "Transporte público",
+        "prc_minutes": "{minutes} min",
+        "prc_step_wait": "({time} de espera)"
     },
     "fr": {
         "prc_card_title": "Itinéraire",
@@ -121,7 +127,9 @@
         "prc_at": "À",
         "prc_in_town": "à {town}",
         "prc_options_title": "Options",
-        "prc_public_transport": "Transports publics"
+        "prc_public_transport": "Transports publics",
+        "prc_minutes": "{minutes} min",
+        "prc_step_wait": "({time} d’attente)"
     },
     "it": {
         "prc_card_title": "Tragitto",
@@ -152,7 +160,9 @@
         "prc_at": "In",
         "prc_in_town": "a {town}",
         "prc_options_title": "Opzioni",
-        "prc_public_transport": "Trasporto pubblico"
+        "prc_public_transport": "Trasporto pubblico",
+        "prc_minutes": "{minutes} min",
+        "prc_step_wait": "({time} di attesa)"
     },
     "ja": {
         "prc_card_title": "ルート",
@@ -183,7 +193,9 @@
         "prc_at": "滞在",
         "prc_in_town": "{town}",
         "prc_options_title": "オプション",
-        "prc_public_transport": "公共輸送機関"
+        "prc_public_transport": "公共輸送機関",
+        "prc_minutes": "{minutes} 分",
+        "prc_step_wait": "(待ち時間 {time})"
     },
     "ko": {
         "prc_card_title": "경로",
@@ -214,7 +226,9 @@
         "prc_at": "위치",
         "prc_in_town": "{town}",
         "prc_options_title": "옵션",
-        "prc_public_transport": "대중교통"
+        "prc_public_transport": "대중교통",
+        "prc_minutes": "{minutes}분",
+        "prc_step_wait": "(대기 시간 {time})"
     },
     "nl": {
         "prc_card_title": "Route",
@@ -245,7 +259,9 @@
         "prc_at": "In",
         "prc_in_town": "in {town}",
         "prc_options_title": "Opties",
-        "prc_public_transport": "Openbaar vervoer"
+        "prc_public_transport": "Openbaar vervoer",
+        "prc_minutes": "{minutes} min.",
+        "prc_step_wait": "({time} wachttijd)"
     },
     "pl": {
         "prc_card_title": "Trasa",
@@ -276,7 +292,9 @@
         "prc_at": "W",
         "prc_in_town": "miasto {town}",
         "prc_options_title": "Opcje",
-        "prc_public_transport": "Transport publiczny"
+        "prc_public_transport": "Transport publiczny",
+        "prc_minutes": "{minutes} min",
+        "prc_step_wait": "({time} oczekiwania)"
     },
     "pt_BR": {
         "prc_card_title": "Rota",
@@ -307,7 +325,9 @@
         "prc_at": "Em",
         "prc_in_town": "em {town}",
         "prc_options_title": "Opções",
-        "prc_public_transport": "Transporte Público"
+        "prc_public_transport": "Transporte Público",
+        "prc_minutes": "{minutes} min",
+        "prc_step_wait": "({time} de espera)"
     },
     "ru": {
         "prc_card_title": "Маршрут",
@@ -338,7 +358,9 @@
         "prc_at": "Где",
         "prc_in_town": "г. {town}",
         "prc_options_title": "Варианты",
-        "prc_public_transport": "Общественный транспорт"
+        "prc_public_transport": "Общественный транспорт",
+        "prc_minutes": "{minutes} мин.",
+        "prc_step_wait": "({time} ожидания)"
     },
     "zh_CN": {
         "prc_card_title": "路线",
@@ -369,7 +391,9 @@
         "prc_at": "所在",
         "prc_in_town": "位于{town}",
         "prc_options_title": "方案",
-        "prc_public_transport": "公共交通"
+        "prc_public_transport": "公共交通",
+        "prc_minutes": "{minutes} 分钟",
+        "prc_step_wait": "(等待 {time})"
     },
     "zh_TW": {
         "prc_card_title": "途徑",
@@ -400,6 +424,8 @@
         "prc_at": "所在",
         "prc_in_town": "位於{town}",
         "prc_options_title": "方案",
-        "prc_public_transport": "大眾交通"
+        "prc_public_transport": "大眾交通",
+        "prc_minutes": "{minutes}分",
+        "prc_step_wait": "(等待 {time})"
     }
 }

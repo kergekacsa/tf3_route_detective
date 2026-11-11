@@ -25,7 +25,7 @@ One item of the numbered list of a travel option: a walk, or a ride on one line 
 _Avoid_: Leg (the name of a step in the code only), segment, section (a section is the part of a line between two stops)
 
 **Option**:
-Also travel option. One way to make the current trip: Walk, Car, or one route by public transport. Each has a time, a length, and an eye button for the map. The card lists the options from the shortest to the longest.
+Also travel option. One way to make the current trip: Walk, Car, or one route by public transport. Each has a time, a length, and an eye button for the map. The card lists the options from the shortest to the longest, and the chosen one first among options that show the same time.
 _Avoid_: Alternative (the game keeps none), method, estimate
 
 **Estimate**:
@@ -49,7 +49,7 @@ One way from a station in reach of the origin to a station in reach of the targe
 _Avoid_: Connection, line option
 
 **Path on the map**:
-The steps of an option drawn over the world: a walk in blue, a drive in red, a ride in the colour of its line. The eye button of an option switches it, Show all and Hide all switch every option.
+The steps of an option drawn over the world in the colour of the option, a light and a dark shade in turns. The dot in front of the title of the option has the same colour. The eye button of an option switches it, Show all and Hide all switch every option.
 _Avoid_: Overlay, highlight, visualisation
 
 **Map tool**:

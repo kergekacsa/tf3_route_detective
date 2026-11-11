@@ -55,7 +55,6 @@ local function baseWorld(person)
         stops = { { stationGroup = GROUP, station = 0, terminal = 0 }, { stationGroup = GROUP, station = 1, terminal = 0 }, { stationGroup = GROUP, station = 2, terminal = 0 } },
         vehicleInfo = { transportModes = { [BUS_MODE] = true } },
       },
-      COLOR = { color = { x = 0.1, y = 0.2, z = 0.3 } },
     },
     [GROUP] = { STATION_GROUP = { stations = { STATION_O, STATION_FAR, STATION_T } } },
     [STATION_O] = station(STATION_O),
@@ -173,10 +172,11 @@ check("lines: the first walk leads from the origin building to the station", lin
   and near(lines.legs[1].seconds, 100) and near(lines.legs[1].meters, 150))
 check("lines: the ride with its stops, its time, its wait", lines.legs[2].fromStation == STATION_O and lines.legs[2].toStation == STATION_T
   and lines.legs[2].fromStopIndex == 0 and lines.legs[2].toStopIndex == 2 and near(lines.legs[2].seconds, 180) and near(lines.legs[2].waitSeconds, 300))
-check("lines: the ride has its edges from stop to stop, its length, and the colour of the line", #lines.legs[2].edges == 2 and near(lines.legs[2].meters, 600)
-  and near(lines.legs[2].color[1], 0.1) and near(lines.legs[2].color[3], 0.3))
+check("lines: the ride has its edges from stop to stop and its length", #lines.legs[2].edges == 2 and near(lines.legs[2].meters, 600))
 check("lines: the last walk leads from the station to the target building", lines.legs[3].fromStation == STATION_T and lines.legs[3].toBuilding == TARGET)
 check("lines: the totals hold the wait, the ride, and both walks", near(lines.seconds, 300 + 180 + 100 + 100) and near(lines.meters, 150 + 600 + 150))
+check("lines: the minutes of the walks, the ride, and the wait add up to the minutes of the option", lines.minutes == 11 and lines.legs[1].minutes == 2
+  and lines.legs[2].minutes == 3 and lines.legs[2].waitMinutes == 5 and lines.legs[3].minutes == 1 and lines.legs[1].waitMinutes == nil)
 check("lines: the best route is marked when the game chose lines and exposes no leg", lines.chosen == true and not lines.legs[2].current)
 
 -- The game chose the walk and the person walks: the option is the path of the game
@@ -213,7 +213,10 @@ local legs = options[1].legs
 check("waiting: the walk to the stop, the ride, the walk to the target", #legs == 3 and legs[1].fromBuilding == ORIGIN and legs[1].toStation == STATION_O
   and legs[2].line == LINE_SHARED and legs[3].toBuilding == TARGET)
 check("waiting: the ride is the current leg, the walks are not", legs[2].current == true and not legs[1].current and not legs[3].current)
-check("waiting: the ride has no wait in the total", legs[2].waitSeconds == nil and near(options[1].seconds, 100 + 180 + 100))
+check("waiting: the ride of the person has the average wait, and the total holds it", near(legs[2].waitSeconds, 300)
+  and near(options[1].seconds, 100 + 300 + 180 + 100))
+check("waiting: 100 s, 180 s, 300 s, 100 s are 2, 3, 5, and 1 of 11 minutes", options[1].minutes == 11 and legs[1].minutes == 2
+  and legs[2].minutes == 3 and legs[2].waitMinutes == 5 and legs[3].minutes == 1)
 
 -- The person leaves the line before the target: the rest of the trip is the estimate from that station
 c = route_compare.compare(PERSON, trip({ phase = "riding", line = LINE_SHARED, boardStation = STATION_O, leaveStation = STATION_FAR, boardStopIndex = 0,
@@ -278,8 +281,23 @@ check("shortlist: a second route more than 10 % longer is left out", #options ==
 threeLines(210)
 options = linesOptions(route_compare.compare(PERSON, trip({ phase = "waiting", line = LINE_C, boardStation = STATION_O, leaveStation = STATION_T,
   boardStopIndex = 0, leaveStopIndex = 2 })))
-check("shortlist: the route the game chose stays, also as the third", #options == 3 and near(options[3].seconds, 100 + 700 + 100) and options[3].chosen
+check("shortlist: the route the game chose stays, also as the third", #options == 3 and near(options[3].seconds, 100 + 300 + 700 + 100) and options[3].chosen
   and not options[1].chosen)
+
+-- Two options with the same shown time: the choice of the game comes first
+load(baseWorld({ SIM_PERSON = { lastMoveMode = WALK, walkSpeed = 5.3 } }))
+c = route_compare.compare(PERSON, trip())
+check("same time: a chosen walk of 28.3 s comes before a drive of 28 s", c.options[1].kind == "walk" and c.options[1].chosen
+  and c.options[2].kind == "car" and near(c.options[2].seconds, 28))
+load(baseWorld({ SIM_PERSON = { lastMoveMode = DRIVE, walkSpeed = 5.3 } }))
+c = route_compare.compare(PERSON, trip())
+check("same time: a chosen drive stays before the walk", c.options[1].kind == "car" and c.options[1].chosen and c.options[2].kind == "walk")
+
+threeLines(185)
+options = linesOptions(route_compare.compare(PERSON, trip({ phase = "waiting", line = LINE_B, boardStation = STATION_O, leaveStation = STATION_T,
+  boardStopIndex = 0, leaveStopIndex = 2 })))
+check("same time: the chosen route of 685 s comes before the route of 680 s, both 11 minutes", #options == 2 and options[1].chosen
+  and near(options[1].seconds, 685) and near(options[2].seconds, 680) and options[1].minutes == 11 and options[2].minutes == 11)
 
 -- Errors
 load(baseWorld())

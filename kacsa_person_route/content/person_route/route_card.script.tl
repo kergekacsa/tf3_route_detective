@@ -11,6 +11,7 @@ local hud_react_util = ug_require "::/gui/hud/hud_react_util.tl" as HudReactUtil
 local line_react_util = ug_require "::/gui/line_vehicle_mgmt/line_react_util.tl" as LineReactUtil
 local react = ug_require "::/gui/main/react.lua" as React
 local selector_react_util = ug_require "::/gui/main/selector_react_util.tl" as SelectorReactUtil
+local styleutil = ug_require "::/gui/main/styleutil.tl" as StyleUtil
 local route_state = ug_require "kacsa_person_route::/person_route/route_state.tl" as PrcRouteStateModule
 local route_compare = ug_require "kacsa_person_route::/person_route/route_compare.tl" as PrcRouteCompareModule
 
@@ -32,9 +33,20 @@ local PATH_WIDTH <const> = 3.0
 local PATH_STEP_SIZE <const> = 1
 local LINE_VIEWER_FADING_MIN_HEIGHT <const> = 80
 local LINE_VIEWER_FADING_DELTA_HEIGHT <const> = 180
--- RGBA of a walk and of a drive on the map. A ride has the colour of its line.
-local COLOR_WALK : {number} = { 0.20, 0.55, 0.95, 0.90 }
-local COLOR_CAR : {number} = { 0.90, 0.35, 0.20, 0.90 }
+-- The colour of an option, as RGBA: its steps on the map take the light and the dark shade in turns, and the dot in front
+-- of its title has the light shade.
+local record OptionColor
+	light : {number}
+	dark : {number}
+end
+local COLOR_WALK : OptionColor = { light = { 0.40, 0.70, 1.00, 0.90 }, dark = { 0.10, 0.38, 0.80, 0.90 } }
+local COLOR_CAR : OptionColor = { light = { 1.00, 0.52, 0.38, 0.90 }, dark = { 0.78, 0.20, 0.10, 0.90 } }
+-- The routes by public transport take these in their order, and start again after the last.
+local COLORS_LINES : {OptionColor} = {
+	{ light = { 0.45, 0.88, 0.50, 0.90 }, dark = { 0.10, 0.58, 0.25, 0.90 } },
+	{ light = { 0.80, 0.58, 1.00, 0.90 }, dark = { 0.50, 0.25, 0.80, 0.90 } },
+	{ light = { 1.00, 0.85, 0.35, 0.90 }, dark = { 0.80, 0.60, 0.05, 0.90 } },
+}
 -- The eye of a path that is on the map, and the crossed eye of a path that is not.
 local ICON_SHOWN <const> = "::/gui/menu/icons/mod_management/mod-invisible.tga"
 local ICON_HIDDEN <const> = "::/gui/line_vehicle_mgmt/icons/symbol_eye.tga"
@@ -54,7 +66,7 @@ local CLASS_GAP <const> = "prc-gap"
 local ICON_CURRENT_START <const> = "::/gui/entity_window/icons/arrow_head_right.tga"
 local ICON_CURRENT_END <const> = "::/gui/entity_window/icons/arrow_head_left.tga"
 local CLASS_CURRENT <const> = "prc-current"
--- The dot in front of the title of an option. route_card.css.lua sizes it.
+-- The dot in front of the title of an option, in the colour of the option. route_card.css.lua sizes it.
 local ICON_BULLET <const> = "::/gui/main/icons/circle.tga"
 local CLASS_BULLET <const> = "prc-bullet"
 local TOOL_KEY_PREFIX <const> = "prc_paths_"
@@ -95,6 +107,11 @@ local function seconds(value : number) : string
 		return ""
 	end
 	return api.util.formatSeconds(math.floor(math.abs(value)) as integer)
+end
+
+-- The game's own text for whole minutes, "{minutes} min" in English.
+local function minutes(value : integer) : string
+	return (_("prc_minutes"):gsub("{minutes}", tostring(value)))
 end
 
 local function destinationTitle(index : integer) : string
@@ -400,7 +417,8 @@ local function showButton(key : string, shown : Shown, setShown : function(strin
 	}
 end
 
--- One leg of a route by lines as an item of a numbered list: the number with the method (the line, or Walk), then the
+-- One leg of a route by lines as an item of a numbered list: the number with the method (the line, or Walk), its time in
+-- minutes with the average wait for the line in brackets, then the
 -- place the leg starts at, then the place it ends at, both indented. The leg the person is on, or waits for, is bold and has an arrow
 -- at each end of its first line.
 local function legItem(number : integer, leg : PrcRouteLeg) : TreeNodeId
@@ -416,12 +434,19 @@ local function legItem(number : integer, leg : PrcRouteLeg) : TreeNodeId
 	head[#head + 1] = text(tostring(number) .. ".", class)
 	if leg.line ~= nil then
 		head[#head + 1] = lineName(leg.line, bold)
-		if leg.waitSeconds == nil and not bold then
+		if leg.waitSeconds == nil then
 			head[#head + 1] = text(_("prc_no_frequency"))
 		end
 	else
 		head[#head + 1] = entity_window_util.GetMoveModeIcon(api.type["enum"].MoveMode.WALK)
 		head[#head + 1] = text(_("Walk"), class)
+	end
+	if leg.minutes ~= nil then
+		local time = minutes(leg.minutes)
+		if leg.waitMinutes ~= nil then
+			time = time .. " " .. (_("prc_step_wait"):gsub("{time}", minutes(leg.waitMinutes)))
+		end
+		head[#head + 1] = text(time, class)
 	end
 	if bold then
 		head[#head + 1] = arrow(ICON_CURRENT_END)
@@ -445,15 +470,37 @@ local function optionKey(option : PrcOption) : string
 	return table.concat(parts, ":")
 end
 
--- One option as a table: on the left its title, its time and length with the eye, and the mark of the choice of the game;
--- on the right, for a route by lines, its legs as a numbered list, one row per leg.
-local function optionTable(option : PrcOption, title : string, shown : Shown, setShown : function(string, boolean)) : TreeNodeId
+-- The colour of each option of a result, at the index of the option.
+local function optionColors(c : PrcCompareResult) : {OptionColor}
+	local colors : {OptionColor} = {}
+	local lineNumber = 0
+	for i, option in ipairs(c.options) do
+		if option.kind == "car" then
+			colors[i] = COLOR_CAR
+		elseif option.kind == "lines" then
+			colors[i] = COLORS_LINES[lineNumber % #COLORS_LINES + 1]
+			lineNumber = lineNumber + 1
+		else
+			colors[i] = COLOR_WALK
+		end
+	end
+	return colors
+end
+
+-- One option as a table: on the left its title behind a dot in its colour, its time and length with the eye, and the mark
+-- of the choice of the game; on the right, for a route by lines, its legs as a numbered list, one row per leg.
+local function optionTable(option : PrcOption, title : string, color : OptionColor, shown : Shown, setShown : function(string, boolean)) : TreeNodeId
 	local summary : {TreeNodeId} = { horizontal({
-		builtin.ImageView{ meta = { class = CLASS_BULLET }, path = ICON_BULLET, scaling = builtin.type.ImageViewScaling.AutoFit },
+		builtin.ImageView{
+			meta = { class = CLASS_BULLET, styleSheet = styleutil.makeStyle{ color = color.light } },
+			path = ICON_BULLET,
+			scaling = builtin.type.ImageViewScaling.AutoFit,
+		},
 		text(title, CLASS_HEADLINE),
 	}) }
 	if option.available then
-		local numbers = seconds(option.seconds)
+		-- A route by lines shows whole minutes, so the minutes of its legs add up to it.
+		local numbers = option.kind == "lines" and minutes(option.minutes) or seconds(option.seconds)
 		if option.meters ~= nil and option.meters > 0 then
 			numbers = numbers .. ", " .. api.util.formatLength(option.meters)
 		end
@@ -489,6 +536,7 @@ local function optionsNodes(c : PrcCompareResult, shown : Shown, setShown : func
 		nodes[1] = text(noteText(c.error))
 		return nodes
 	end
+	local colors = optionColors(c)
 	local lineNumber = 0
 	for i, option in ipairs(c.options) do
 		local title = _("Walk")
@@ -501,20 +549,24 @@ local function optionsNodes(c : PrcCompareResult, shown : Shown, setShown : func
 		if i > 1 then
 			nodes[#nodes + 1] = builtin.Component{ meta = { class = CLASS_DIVIDER_THIN } }
 		end
-		nodes[#nodes + 1] = optionTable(option, title, shown, setShown)
+		nodes[#nodes + 1] = optionTable(option, title, colors[i], shown, setShown)
 	end
 	return nodes
 end
 
--- What the map tool draws for the options the player switched on: the edges of each leg in the colour of its line, of a
--- walk, or of a drive, and the whole line of a ride whose edges are not known.
+-- What the map tool draws for the options the player switched on: the edges of each leg in the colour of its option, the
+-- light and the dark shade in turns, and the whole line of a ride whose edges are not known.
 local function mapPaths(c : PrcCompareResult, shown : Shown) : {PrcMapPath}
 	local paths : {PrcMapPath} = {}
-	for __, option in ipairs(c ~= nil and c.options or {}) do
+	if c == nil or c.options == nil then
+		return paths
+	end
+	local colors = optionColors(c)
+	for i, option in ipairs(c.options) do
 		local key = optionKey(option)
-		for __, leg in ipairs(shown[key] and option.legs or {}) do
+		for step, leg in ipairs(shown[key] and option.legs or {}) do
 			if leg.edges ~= nil then
-				paths[#paths + 1] = { key = key, edges = leg.edges, color = leg.color or (leg.car and COLOR_CAR or COLOR_WALK) }
+				paths[#paths + 1] = { key = key, edges = leg.edges, color = step % 2 == 1 and colors[i].light or colors[i].dark }
 			elseif leg.line ~= nil then
 				paths[#paths + 1] = { key = key, line = leg.line }
 			end
