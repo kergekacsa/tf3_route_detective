@@ -136,6 +136,8 @@ global record PrcMapPath
 	line : Engine.Entity
 	--- RGBA
 	color : {number}
+	--- line width in metres
+	width : number
 end
 
 --- The paths the card wants on the map for one person. The tool reads it each step and redraws when `version` changes.

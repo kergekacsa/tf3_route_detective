@@ -30,7 +30,10 @@ local LABEL_WEIGHT <const> = 2
 local VALUE_WEIGHT <const> = 3
 -- Drawing of a path on the map: metres above the edge, line width in metres, and the sampling step of the renderer.
 local PATH_OFFSET_Z <const> = 1.5
-local PATH_WIDTH <const> = 3.0
+-- The line width tells how the person moves: a ride is a thick line, a drive a normal one, a walk a thin one.
+local WIDTH_RIDE <const> = 5.0
+local WIDTH_DRIVE <const> = 3.0
+local WIDTH_WALK <const> = 1.5
 local PATH_STEP_SIZE <const> = 1
 local LINE_VIEWER_FADING_MIN_HEIGHT <const> = 80
 local LINE_VIEWER_FADING_DELTA_HEIGHT <const> = 180
@@ -200,7 +203,7 @@ local function pathEdges(path : PrcMapPath, into : {Builtin.Type.EdgeRenderable.
 		if edge and edge.geometry then
 			local drawn = builtin.type.EdgeRenderable.Edge.new(edge.geometry)
 			drawn.colors = { color, color, color }
-			drawn.width = PATH_WIDTH
+			drawn.width = path.width
 			drawn.offsetZ = PATH_OFFSET_Z
 			drawn.stepSize = PATH_STEP_SIZE
 			into[#into + 1] = drawn
@@ -561,7 +564,8 @@ local function optionsNodes(c : PrcCompareResult, shown : Shown, setShown : func
 end
 
 -- What the map tool draws for the options the player switched on: the edges of each leg in the colour of its option, the
--- light and the dark shade in turns, and the whole line of a ride whose edges are not known.
+-- light and the dark shade in turns, in the width of its way to move, and the whole line of a ride whose edges are not
+-- known.
 local function mapPaths(c : PrcCompareResult, shown : Shown) : {PrcMapPath}
 	local paths : {PrcMapPath} = {}
 	if c == nil or c.options == nil then
@@ -572,7 +576,12 @@ local function mapPaths(c : PrcCompareResult, shown : Shown) : {PrcMapPath}
 		local key = optionKey(option)
 		for step, leg in ipairs(shown[key] and option.legs or {}) do
 			if leg.edges ~= nil then
-				paths[#paths + 1] = { key = key, edges = leg.edges, color = step % 2 == 1 and colors[i].light or colors[i].dark }
+				paths[#paths + 1] = {
+					key = key,
+					edges = leg.edges,
+					color = step % 2 == 1 and colors[i].light or colors[i].dark,
+					width = leg.line ~= nil and WIDTH_RIDE or (leg.car and WIDTH_DRIVE or WIDTH_WALK),
+				}
 			elseif leg.line ~= nil then
 				paths[#paths + 1] = { key = key, line = leg.line }
 			end

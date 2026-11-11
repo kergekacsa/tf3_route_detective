@@ -49,7 +49,7 @@ One way from a station in reach of the origin to a station in reach of the targe
 _Avoid_: Connection, line option
 
 **Path on the map**:
-The steps of an option drawn over the world in the colour of the option, a light and a dark shade in turns. The dot in front of the title of the option has the same colour. The eye button of an option switches it, Show all and Hide all switch every option.
+The steps of an option drawn over the world in the colour of the option, a light and a dark shade in turns. A ride is a thick line, a drive a normal one, a walk a thin one. The dot in front of the title of the option has the same colour. The eye button of an option switches it, Show all and Hide all switch every option.
 _Avoid_: Overlay, highlight, visualisation
 
 **Map tool**:
