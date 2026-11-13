@@ -152,6 +152,69 @@ check("path: the lower of speed limit and curve limit counts", near(seconds, 300
 meters, seconds = route_compare.pathLengthAndTime({ { edge(99), true } })
 check("path: an unknown edge counts nothing", near(meters, 0) and near(seconds, 0))
 
+-- An edge whose curve speed limit the game does not hand to Lua
+local REFUSED_EDGE, CONSTRUCTION = 4, 700
+local function refusedWorld()
+  local w = baseWorld({ SIM_PERSON = { lastMoveMode = WALK, walkSpeed = 1.5 } })
+  w[NETWORK].TRANSPORT_NETWORK.edges[REFUSED_EDGE + 1] = setmetatable({ geometry = { length = 120 }, speedLimit = 12 }, {
+    __index = function(_, key)
+      if key == "curveSpeedLimit" then error("The native floating point can't fit inside a lua number") end
+      return nil
+    end,
+  })
+  return w
+end
+load(refusedWorld())
+meters, seconds = route_compare.pathLengthAndTime({ { edge(REFUSED_EDGE), true } })
+check("refused curve limit: the edge counts with its speed limit", near(meters, 120) and near(seconds, 120 / 12))
+
+local function refusedLogLines(w, wire)
+  load(w, function(api)
+    api.engine.util.pathfinding.findPathNodeToNode = function() return { { edge(REFUSED_EDGE), true } } end
+    if wire then wire(api) end
+  end)
+  local lines = {}
+  local realPrint = print
+  print = function(text) if tostring(text):find("curve speed limit", 1, true) then lines[#lines + 1] = text end end
+  local ok, result = pcall(route_compare.compare, PERSON, trip())
+  print = realPrint
+  return lines, ok and result or nil
+end
+
+local refusedLines, refusedResult = refusedLogLines(refusedWorld())
+check("refused curve limit: the options are computed", refusedResult ~= nil and kind(refusedResult, "car") ~= nil
+  and near(kind(refusedResult, "car").seconds, 120 / 12))
+check("refused curve limit: one log line names the edge", #refusedLines == 1
+  and refusedLines[1]:find("edge " .. REFUSED_EDGE .. " of entity " .. NETWORK .. " (owner unknown)", 1, true) ~= nil, refusedLines[1])
+
+local ownedByConstruction = refusedWorld()
+ownedByConstruction[NETWORK].CONSTRUCTION = { fileName = "::/placeholders/generic.con" }
+refusedLines = refusedLogLines(ownedByConstruction)
+check("refused curve limit: the log names the construction of the edge",
+  #refusedLines == 1 and refusedLines[1]:find("(construction ::/placeholders/generic.con)", 1, true) ~= nil, refusedLines[1])
+
+local ownedByStreet = refusedWorld()
+ownedByStreet[NETWORK].BASE_EDGE = { roadTemplate = "::/street.lua" }
+ownedByStreet[CONSTRUCTION] = { CONSTRUCTION = { fileName = "::/station.con" } }
+refusedLines = refusedLogLines(ownedByStreet, function(api)
+  api.engine.system.streetConnectorSystem.getConstructionEntityForEdge = function(entity)
+    return entity == NETWORK and CONSTRUCTION or -1
+  end
+end)
+check("refused curve limit: the log names the street and its construction",
+  #refusedLines == 1 and refusedLines[1]:find("(street or track ::/street.lua, construction ::/station.con)", 1, true) ~= nil, refusedLines[1])
+
+load(baseWorld())
+local quietLines = {}
+do
+  local realPrint = print
+  print = function(text) if tostring(text):find("curve speed limit", 1, true) then quietLines[#quietLines + 1] = text end end
+  route_compare.compare(PERSON, trip())
+  print = realPrint
+end
+check("refused curve limit: no log line when every limit is readable", #quietLines == 0)
+load(baseWorld())
+
 -- The options of a person whose leg the game does not expose: every option is an estimate
 local c = route_compare.compare(PERSON, trip())
 check("options: from the shortest to the longest: car 28 s, walk 100 s, lines 680 s", #c.options == 3 and c.options[1].kind == "car"

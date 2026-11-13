@@ -34,8 +34,10 @@ The option the game chose is on the map as soon as the card is open, until you s
 - The estimated steps of the chosen option can differ from what the person then does. The game can choose another route than the best one the mod finds.
 - The time of an option is not what the game compares. The game compares a cost that a script cannot read, and it multiplies the cost of lines by a factor per town (a marketing campaign, or a mod such as Transit Preference). So the game can choose an option that the card shows as much slower.
 - A ride uses the section times of one vehicle of the line, and half the interval between vehicles as the wait. The ride the person is on has this average wait too, because the person had to wait for it; the real wait so far is in the first block.
+- The game gives a section time of 0 for a section that no vehicle of the line has driven since the load. A ride over such a section shows too short a time until a vehicle has driven it.
+- A line can stop at one station twice in one round. An estimated ride then starts at the visit that gives the shorter ride. Of two rides with the same time, the one over fewer sections of the line counts. The ride of the current step keeps the stops the game names.
 - The minutes of the steps are rounded so that they add up to the minutes of the option. A short step can show "0 min".
-- The walk and car estimates use the shortest path in the network and the speed limits of the edges. They ignore traffic and waiting at junctions.
+- The walk and car estimates use the shortest path in the network and the speed limits of the edges. They ignore traffic and waiting at junctions. Where the game does not give the curve speed limit of an edge, the edge counts with its speed limit alone.
 - A walking path is drawn over whole edges, also where the person uses only a part of an edge.
 - The section of a line between two stops is the path the game's pathfinder finds between the two stops. A vehicle of the line can take another path when the line has waypoints.
 - The walk and car estimates start and end at the street of the parcels of a building. An industry has no parcels, so a trip from or to an industry shows "no access nodes" for walk and car unless the person walks or drives it now.

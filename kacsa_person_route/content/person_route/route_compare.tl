@@ -29,6 +29,44 @@ local function component(entity : Engine.Entity, kind : Engine.ComponentType) : 
 	return api.engine.getComponent(entity, kind)
 end
 
+-- The reads of a curve speed limit that the game refused since `compare` started, and the edge of the first of them.
+local refusedReads = 0
+local firstRefused : EdgeId
+
+local function readCurveSpeedLimit(edge : Edge) : number
+	return edge.curveSpeedLimit
+end
+
+-- The curve speed limit of an edge in m/s. nil when the game does not hand the value to Lua.
+local function curveSpeedLimit(edge : Edge, edgeId : EdgeId) : number
+	local ok, value = pcall(readCurveSpeedLimit, edge)
+	if ok then
+		return value as number
+	end
+	refusedReads = refusedReads + 1
+	firstRefused = firstRefused or edgeId
+	return nil
+end
+
+-- What an edge belongs to, for the log: the template of its street or track, and the construction that owns it.
+local function ownerText(edgeId : EdgeId) : string
+	local parts : {string} = {}
+	pcall(function() : any
+		local owner = edgeId.entity
+		local baseEdge = component(owner, api.type.ComponentType.BASE_EDGE) as Engine.Component.BaseEdge
+		if baseEdge ~= nil then
+			parts[#parts + 1] = "street or track " .. tostring(baseEdge.roadTemplate)
+			owner = api.engine.system.streetConnectorSystem.getConstructionEntityForEdge(owner)
+		end
+		local construction = component(owner, api.type.ComponentType.CONSTRUCTION) as Engine.Component.Construction
+		if construction ~= nil then
+			parts[#parts + 1] = "construction " .. tostring(construction.fileName)
+		end
+		return nil
+	end)
+	return #parts > 0 and table.concat(parts, ", ") or "owner unknown"
+end
+
 route_compare.pathLengthAndTime = function(edges : {{EdgeId, boolean}}) : number, number
 	local meters = 0.0
 	local seconds = 0.0
@@ -40,8 +78,9 @@ route_compare.pathLengthAndTime = function(edges : {{EdgeId, boolean}}) : number
 			local length = edge.geometry and edge.geometry.length or 0
 			meters = meters + length
 			local speed = edge.speedLimit or 0
-			if edge.curveSpeedLimit and edge.curveSpeedLimit > 0 and edge.curveSpeedLimit < speed then
-				speed = edge.curveSpeedLimit
+			local curveLimit = curveSpeedLimit(edge, edgeId)
+			if curveLimit and curveLimit > 0 and curveLimit < speed then
+				speed = curveLimit
 			end
 			seconds = seconds + length / math.max(speed, MIN_SPEED_MPS)
 		end
@@ -401,6 +440,7 @@ route_compare.compare = function(personEntity : Engine.Entity, state : PrcRouteS
 	local moveModes = api.type["enum"].MoveMode
 	local walkSpeed = math.max(simPerson.walkSpeed or 0, MIN_SPEED_MPS)
 	local current = route_state.currentPath(personEntity)
+	refusedReads, firstRefused = 0, nil
 	local platformWalks, entranceWalks, nearestWalks = route_lines.batch(function()
 		result.options[1] = directOption("walk", result.chosen == moveModes.WALK, state, current, walkSpeed)
 		result.options[2] = directOption("car", result.chosen == moveModes.DRIVE, state, current, walkSpeed)
@@ -412,6 +452,10 @@ route_compare.compare = function(personEntity : Engine.Entity, state : PrcRouteS
 	print(LOG_PREFIX .. "options of person " .. tostring(personEntity) .. ": " .. tostring(#result.options) .. " in "
 		.. string.format("%.0f", (os.clock() - started) * MS_PER_SECOND) .. " ms, station walks: " .. tostring(platformWalks)
 		.. " by platform, " .. tostring(entranceWalks) .. " by entrance, " .. tostring(nearestWalks) .. " by nearest street")
+	if firstRefused ~= nil then
+		print(LOG_PREFIX .. tostring(refusedReads) .. " reads of a curve speed limit refused by the game, first at edge "
+			.. tostring(firstRefused.index) .. " of entity " .. tostring(firstRefused.entity) .. " (" .. ownerText(firstRefused) .. ")")
+	end
 	return result
 end
 

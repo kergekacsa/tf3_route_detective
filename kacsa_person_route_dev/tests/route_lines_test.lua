@@ -7,8 +7,10 @@ support.installRequire()
 
 -- Stations S1..S6. Line A: S1 -> S2 -> S3. Line B: S4 -> S5. Line C: S5 -> S6. Line SLOW: S1 -> S6 directly.
 -- S3 and S4 are 150 m apart on foot. Every line returns to its first stop after its last one.
+-- Line LOOP: LA -> LB -> LC -> LB, so it stops at LB twice in one round.
 local S1, S2, S3, S4, S5, S6, S_LONELY = 11, 12, 13, 14, 15, 16, 17
-local LINE_A, LINE_B, LINE_C, LINE_SLOW, LINE_EMPTY = 60, 61, 62, 63, 64
+local LA, LB, LC = 18, 19, 20
+local LINE_A, LINE_B, LINE_C, LINE_SLOW, LINE_EMPTY, LINE_LOOP = 60, 61, 62, 63, 64, 65
 local GROUP = 70
 local WALK_SPEED = 1.5
 local STREET = 2000
@@ -22,14 +24,16 @@ local stationsOfLine = {
   [LINE_C] = { S5, S6 },
   [LINE_SLOW] = { S1, S6 },
   [LINE_EMPTY] = { S1, S6 },
+  [LINE_LOOP] = { LA, LB, LC, LB },
 }
 local sectionTimes = {
   [LINE_A] = { 100, 50, 150 },
   [LINE_B] = { 200, 200 },
   [LINE_C] = { 40, 40 },
   [LINE_SLOW] = { 5000, 5000 },
+  [LINE_LOOP] = { 60, 70, 70, 60 },
 }
-local allStations = { S1, S2, S3, S4, S5, S6, S_LONELY }
+local allStations = { S1, S2, S3, S4, S5, S6, S_LONELY, LA, LB, LC }
 
 local pathCalls
 local mapCalls
@@ -76,7 +80,7 @@ local function install(wire)
   end
   api.engine.system.lineSystem.getLineStopsForStation = function(station)
     local result = {}
-    for _, line in ipairs({ LINE_A, LINE_B, LINE_C, LINE_SLOW, LINE_EMPTY }) do
+    for _, line in ipairs({ LINE_A, LINE_B, LINE_C, LINE_SLOW, LINE_EMPTY, LINE_LOOP }) do
       for i, at in ipairs(stationsOfLine[line]) do
         if at == station then result[#result + 1] = { line, i - 1 } end
       end
@@ -334,5 +338,35 @@ local okBatch, message = pcall(route_lines.batch, function() error("inside the b
 mapCalls = 0
 route_lines.stationNodes(S1)
 check("batch: an error leaves the batch and reaches the caller", okBatch == false and tostring(message):find("inside the batch", 1, true) ~= nil and mapCalls == 1)
+
+-- A line that stops at one station twice in one round
+route_lines = install()
+search = route_lines.search({ LC }, WALK_SPEED)
+route = search.routeFrom(LB)
+check("station twice on a line: the ride starts at the visit before the target", #route.legs == 1 and route.legs[1].fromStopIndex == 1
+  and route.legs[1].toStopIndex == 2 and near(route.legs[1].seconds, 70))
+options = search.options({ LB }, 5)
+check("station twice on a line: the option starts at the visit before the target", #options == 1 and options[1].legs[1].fromStopIndex == 1
+  and options[1].legs[1].toStopIndex == 2)
+
+-- The same line when its vehicle has no section times yet, and the game lists the later visit first
+local measured = sectionTimes[LINE_LOOP]
+sectionTimes[LINE_LOOP] = { 0, 0, 0, 0 }
+route_lines = install(function(api)
+  local inOrder = api.engine.system.lineSystem.getLineStopsForStation
+  api.engine.system.lineSystem.getLineStopsForStation = function(station)
+    local stops, reversed = inOrder(station), {}
+    for i = #stops, 1, -1 do reversed[#reversed + 1] = stops[i] end
+    return reversed
+  end
+end)
+search = route_lines.search({ LC }, WALK_SPEED)
+route = search.routeFrom(LB)
+check("equal times: the route takes the ride over fewer sections", #route.legs == 1 and route.legs[1].fromStopIndex == 1
+  and route.legs[1].toStopIndex == 2, route.legs[1] and route.legs[1].fromStopIndex)
+options = search.options({ LB }, 5)
+check("equal times: the option takes the ride over fewer sections", #options == 1 and options[1].legs[1].fromStopIndex == 1
+  and options[1].legs[1].toStopIndex == 2, options[1] and options[1].legs[1].fromStopIndex)
+sectionTimes[LINE_LOOP] = measured
 
 support.finish("route_lines")

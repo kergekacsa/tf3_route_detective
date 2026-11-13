@@ -26,6 +26,8 @@ local record NetEdge
 	from : Engine.Entity
 	to : Engine.Entity
 	cost : number
+	--- the sections of its line that a ride runs over; 0 for a walk
+	sections : integer
 	leg : PrcRouteLeg
 end
 
@@ -489,6 +491,7 @@ local function buildNetwork(walkSpeed : number) : Network
 						from = station,
 						to = to,
 						cost = ride + (info.wait or 0),
+						sections = step,
 						leg = { line = line, fromStation = station, toStation = to, fromStopIndex = stop, toStopIndex = toStop, seconds = ride, waitSeconds = info.wait },
 					})
 				end
@@ -497,11 +500,17 @@ local function buildNetwork(walkSpeed : number) : Network
 		for other, distance in pairs(station2stations[station] or {}) do
 			if other ~= station then
 				local leg : PrcRouteLeg = { fromStation = station, toStation = other, seconds = distance / speed }
-				addEdge({ from = station, to = other, cost = leg.seconds, leg = leg })
+				addEdge({ from = station, to = other, cost = leg.seconds, sections = 0, leg = leg })
 			end
 		end
 	end
 	return { outOf = outOf, into = into, station2stations = station2stations, speed = speed }
+end
+
+-- Of two rides that cost the same, the one over fewer sections of its line comes first. `other` is nil when no edge is
+-- known yet.
+local function fewerSections(ride : NetEdge, other : NetEdge) : boolean
+	return ride.leg.line ~= nil and other ~= nil and other.leg.line ~= nil and ride.sections < other.sections
 end
 
 route_lines.search = function(targetStations : {Engine.Entity}, walkSpeed : number) : PrcLineSearch
@@ -534,7 +543,8 @@ route_lines.search = function(targetStations : {Engine.Entity}, walkSpeed : numb
 		done[nearest] = true
 		for __, edge in ipairs(into[nearest] or {}) do
 			local value = cost[nearest] + edge.cost
-			if not done[edge.from] and (cost[edge.from] == nil or value < cost[edge.from]) then
+			local known = cost[edge.from]
+			if not done[edge.from] and (known == nil or value < known or (value == known and fewerSections(edge, nextEdge[edge.from]))) then
 				cost[edge.from] = value
 				nextEdge[edge.from] = edge
 			end
@@ -558,12 +568,15 @@ route_lines.search = function(targetStations : {Engine.Entity}, walkSpeed : numb
 
 	search.options = function(originStations : {Engine.Entity}, maxOptions : integer) : {PrcLineEstimate}
 		local best : {Engine.Entity : PrcLineEstimate} = {}
+		local firstRide : {Engine.Entity : NetEdge} = {}
 		local function offer(start : PrcRouteLeg, startCost : number, station : Engine.Entity)
 			for __, edge in ipairs(outOf[station] or {}) do
 				if edge.leg.line ~= nil and cost[edge.to] ~= nil then
 					local total = startCost + edge.cost + cost[edge.to]
 					local current = best[edge.leg.line]
-					if current == nil or total < current.totalSeconds then
+					if current == nil or total < current.totalSeconds
+						or (total == current.totalSeconds and fewerSections(edge, firstRide[edge.leg.line])) then
+						firstRide[edge.leg.line] = edge
 						local legs : {PrcRouteLeg} = {}
 						if start ~= nil then
 							legs[#legs + 1] = start

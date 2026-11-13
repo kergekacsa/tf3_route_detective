@@ -262,6 +262,14 @@ local function pathOverlay(param : PathOverlayParam) : {TreeNodeId}
 	return children
 end
 
+-- The function of the game that lists the notifications of an entity. The game context holds it in `notificationCache`
+-- in one build of the game and directly in another.
+local function notificationAccess(gameCtx : GameContext) : function(Engine.Entity) : {Notification}
+	local fields = gameCtx as {string : any}
+	local cache = fields["notificationCache"] as {string : any}
+	return (cache and cache["accessNotificationCacheFn"] or fields["accessNotificationCacheFn"]) as function(Engine.Entity) : {Notification}
+end
+
 local function makePathAction(param : PathToolParam) : function() : TreeNodeId
 	return function() : TreeNodeId
 		local hudGuiConfig = api.gui.genericRep.get(api.gui.genericRep.find("::/gui/hud/hud_gui_config.gres")).data as HudGuiConfig
@@ -270,7 +278,7 @@ local function makePathAction(param : PathToolParam) : function() : TreeNodeId
 		local children : {TreeNodeId} = {
 			builtin.HudIconManagerConfig{
 				userParam = {
-					accessNotificationCacheFn = param.gameCtx.accessNotificationCacheFn,
+					accessNotificationCacheFn = notificationAccess(param.gameCtx),
 				},
 				masterRecipe = hud_icon_toolbox.HudIconMasterGame,
 				preFilter = selector_react_util.defaultHudIconFilter,
